@@ -23,6 +23,12 @@ in which:
 * b: the build version, OPTIONAL
 * suffix: usually taking the QA stage label such as alpha, beta etc., OPTIONAL
 
+## Install
+
+```bash
+pip install -U flex_version
+```
+
 ## Routines
 
 ```python
