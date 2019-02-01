@@ -47,10 +47,12 @@ to the initializer, e.g.,
 
 ```python
 from flex_version import VersionMeta
-v = VersionMeta('flex_version-1.0-beta1-foo', versioned_suffix='.*(?P<suffix_version>\d+)-\w+')
+VersionMeta._suffix_regex = '.*(?P<suffix_version>\d+)-\w+'
+# Support versioned suffix such as `flex_version-1.0-beta1-foo`
+# `suffix_version` is a predefined group name to extract the version number.
+# You can also change the group name by
+VersionMeta._suffix_version_sig = 'suffix_version'
 ```
-
-where `suffix_version` is a predefined group name to extract the version number.
 
 2. Class `FlexVersion`
 
