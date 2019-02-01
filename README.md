@@ -1,6 +1,8 @@
 # FlexVersion
 A cute Python library to manipulate version stuff.
 
+[![Latest](https://img.shields.io/pypi/v/flex_version.svg)](https://pypi.python.org/pypi/flex_version)
+
 ## Terminology
 
 A [software version](https://en.wikipedia.org/wiki/Software_versioning) is a numbered string to
@@ -58,9 +60,9 @@ Utility class for available methods:
 
 - `in_range(v, minx, maxv)`: Check if a version `v` lies between (`minv`, `maxv`).
 
-- `compare(v1, v2)`: Compare the level of two versions, returns -1 (lower), 0 (equal), and 1 (larger).
+- `compares(v1, v2)`: Compare the level of two versions, returns -1 (lower), 0 (equal), and 1 (larger).
 
-- `share_prefix(v1, v2)`: Check if two versions sharing the same prefix.
+- `shares_prefix(v1, v2)`: Check if two versions sharing the same prefix.
 
 
 ## By
