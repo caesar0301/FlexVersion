@@ -91,7 +91,7 @@ class VersionMeta(object):
             minor=_verdiff(self.minor, other.minor),
             maintenance=_verdiff(self.maintenance, other.maintenance),
             build=_verdiff(self.build, other.build),
-            suffix_version=_verdiff(self.suffix_version, other.suffix_version)
+            sver=_verdiff(self.suffix_version, other.suffix_version)
         )
 
 
@@ -100,7 +100,7 @@ def _cmperror(x, y):
                     type(x).__name__, type(y).__name__))
 
 
-def VersionDelta(object):
+class VersionDelta(object):
     """
     Represent the difference between two VersionMeta objects.
     (Mainly stolen from datatime.timedelta)
@@ -116,15 +116,15 @@ def VersionDelta(object):
     returning a VersionDelta, and addition or subtraction of a VersionMeta
     and a VersionDelta giving a VersionMeta.
     """
-    __slots__ = '_major', '_minor', '_maintenance', '_build', '_suffix_version', '_hashcode'
+    __slots__ = '_major', '_minor', '_maintenance', '_build', '_sver', '_hashcode'
 
-    def __new__(cls, major=0, minor=0, maintenance=0, build=0, suffix_version=0):
+    def __new__(cls, major=0, minor=0, maintenance=0, build=0, sver=0):
         self = object.__new__(cls)
         self._major = major
         self._minor = minor
         self._maintenance = maintenance
         self._build = build
-        self._suffix_version = suffix_version
+        self._sver = sver
         self._hashcode = -1
         return self
 
@@ -138,12 +138,12 @@ def VersionDelta(object):
             args.append("maintenance=%d" % self._maintenance)
         if self._build:
             args.append("build=%d" % self._build)
-        if self._suffix_version:
-            args.append("suffix_version=%d" % self._suffix_version)
+        if self._sver:
+            args.append("sver=%d" % self._sver)
         if not args:
             args.append('0')
         return "%s.%s(%s)" % (self.__class__.__module__,
-                              self.__class__.__qualname__,
+                              self.__class__.__name__,
                               ', '.join(args))
 
     # Read-only field accessors
@@ -164,8 +164,8 @@ def VersionDelta(object):
         return self._build
 
     @property
-    def suffix_version(self):
-        return self._suffix_version
+    def sver(self):
+        return self._sver
 
     def __add__(self, other):
         if isinstance(other, VersionDelta):
@@ -174,7 +174,7 @@ def VersionDelta(object):
                 self._minor + other._minor,
                 self._maintenance + other._maintenance,
                 self._build + other._build,
-                self._suffix_version + other._suffix_version
+                self._sver + other._sver
             )
         return NotImplemented
 
@@ -191,7 +191,7 @@ def VersionDelta(object):
             -self._minor,
             -self._maintenance,
             -self._build,
-            -self._suffix_version
+            -self._sver
         )
 
     def __pos__(self):
@@ -203,7 +203,7 @@ def VersionDelta(object):
             self._minor if self._minor > 0 else -self._minor,
             self._maintenance if self._maintenance > 0 else -self._maintenance,
             self._build if self._build > 0 else -self._build,
-            self._suffix_version if self._suffix_version > 0 else -self._suffix_version
+            self._sver if self._sver > 0 else -self._sver
         )
 
     def __mul__(self, other):
@@ -215,7 +215,7 @@ def VersionDelta(object):
                 self._minor * other,
                 self._maintenance * other,
                 self._build * other,
-                self._suffix_version * other
+                self._sver * other
             )
         return NotImplemented
 
@@ -268,13 +268,13 @@ def VersionDelta(object):
             self._minor != 0 or
             self._maintenance != 0 or
             self._build != 0 or
-            self._suffix_version != 0
+            self._sver != 0
         )
 
     # Pickle support.
 
     def _getstate(self):
-        return (self._major, self._minor, self._maintenance, self._build, self._suffix_version)
+        return (self._major, self._minor, self._maintenance, self._build, self._sver)
 
     def __reduce__(self):
         return (self.__class__, self._getstate())
@@ -282,17 +282,17 @@ def VersionDelta(object):
 
 VersionDelta.min = VersionDelta(
     major=-999999999,
-    monir=-999999999,
+    minor=-999999999,
     maintenance=-999999999,
     build=-999999999,
-    suffix_version=-999999999
+    sver=-999999999
 )
 VersionDelta.max = VersionDelta(
     major=999999999,
-    monir=999999999,
+    minor=999999999,
     maintenance=999999999,
     build=999999999,
-    suffix_version=999999999
+    sver=999999999
 )
 
 
