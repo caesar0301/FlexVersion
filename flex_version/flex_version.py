@@ -2,6 +2,7 @@
 # Utility to handle with software versions
 # Author: xiaming.chen@transwarp.io
 import re
+import copy
 
 __all__ = ['FlexVersion', 'VersionMeta', 'VersionDelta']
 
@@ -13,6 +14,36 @@ def _cmp(x, y):
 def _cmperror(x, y):
     raise TypeError("can't compare '%s' to '%s'" % (
                     type(x).__name__, type(y).__name__))
+
+
+def _verdiff(v1, v2):
+    if None in (v1, v2):
+        return None
+    return v1 - v2
+
+
+def _veradd(v1, v2):
+    if None in (v1, v2):
+        return None
+    return v1 + v2
+
+
+def _verrev(v1):
+    if v1 is None:
+        return None
+    return -v1
+
+
+def _verabs(v1):
+    if v1 is None:
+        return None
+    return v1 if v1 > 0 else -v1
+
+
+def _vermul(v1, integer):
+    if v1 is None:
+        return None
+    return v1 + integer
 
 
 class VersionMeta(object):
@@ -30,7 +61,7 @@ class VersionMeta(object):
 
     _v_regex = r"(?P<prefix>.*\-)?(?P<major>\d+)(?P<minor>\.\d+)" \
         + r"(?P<maintenance>\.\d+)?(?P<build>\.\d+)?(?P<suffix_raw>\-.*)?"
-    _suffix_regex = '(?P<suffix>[^\d]*)(?P<version>\d+)?'
+    _suffix_regex = r"(?P<suffix>[^\d]*)(?P<version>\d+)?"
 
     def __init__(self, version_str):
         self._raw = version_str
@@ -80,56 +111,98 @@ class VersionMeta(object):
                 if suffix_version is not None:
                     self.suffix_version = int(suffix_version)
 
-    def __str__(self):
+    def raw_str(self):
         return self._raw
+
+    def __repr__(self):
+        args = list()
+        if self.prefix is not None:
+            args.append(self.prefix)
+        if self.major is not None:
+            args.append('-%d' % self.major)
+        if self.minor is not None:
+            args.append('.%d' % self.minor)
+        if self.maintenance is not None:
+            args.append('.%d' % self.maintenance)
+        if self.build is not None:
+            args.append('.%d' % self.build)
+        if self.suffix is not None:
+            args.append('-%s' % self.suffix)
+        if self.suffix_version is not None:
+            args.append('%d' % self.suffix_version)
+        return ''.join(args)
+
+    def __hash__(self):
+        return hash(self._raw)
 
     # Comparisons of VersionMeta objects with other.
 
     def __eq__(self, other):
         if isinstance(other, VersionMeta):
-            return (self - other) == VersionDelta.zero
+            return self.substitute(other) == VersionDelta.zero
         else:
             return False
 
     def __le__(self, other):
         if isinstance(other, VersionMeta):
-            return (self - other) <= VersionDelta.zero
+            return self.substitute(other) <= VersionDelta.zero
         else:
             _cmperror(self, other)
 
     def __lt__(self, other):
         if isinstance(other, VersionMeta):
-            return (self - other) < VersionDelta.zero
+            return self.substitute(other) < VersionDelta.zero
         else:
             _cmperror(self, other)
 
     def __ge__(self, other):
         if isinstance(other, VersionMeta):
-            return (self - other) >= VersionDelta.zero
+            return self.substitute(other) >= VersionDelta.zero
         else:
             _cmperror(self, other)
 
     def __gt__(self, other):
         if isinstance(other, VersionMeta):
-            return (self - other) > VersionDelta.zero
+            return self.substitute(other) > VersionDelta.zero
         else:
             _cmperror(self, other)
 
-    def __sub__(self, other, ignore_prefix=False, ignore_suffix=False):
-        assert isinstance(other, VersionMeta)
+    def add(self, delta, suffix=None):
+        if not isinstance(delta, VersionDelta):
+            return NotImplemented
+
+        def _verplus(v, d):
+            res = d if v is None else v + d if d is not None else v
+            assert res is None or res >= 0
+            return res
+
+        cloned = copy.deepcopy(self)
+        cloned.major = _verplus(self.major, delta.major)
+        cloned.minor = _verplus(self.minor, delta.minor)
+        cloned.maintenance = _verplus(self.maintenance, delta.maintenance)
+        cloned.build = _verplus(self.build, delta.build)
+        cloned.suffix_version = _verplus(self.suffix_version, delta.sver)
+
+        if cloned.suffix_version is not None:
+            if suffix is None and cloned.suffix is None:
+                raise ValueError(
+                    "Suffix is required when performing version addition")
+            elif suffix is not None:
+                cloned.suffix = suffix
+
+        return cloned
+
+    def substitute(self, other, ignore_prefix=False, ignore_suffix=False):
+        if not isinstance(other, VersionMeta):
+            return NotImplemented
 
         if not ignore_prefix and self.prefix != other.prefix:
-            raise ValueError('VersionMeta substibution requires the same prefix: {} vs. {}'.format(
+            raise ValueError('VersionMeta substitution requires the same prefix: {} vs. {}'.format(
                 self.prefix, other.prefix))
 
         if not ignore_suffix and self.suffix != other.suffix:
-            raise ValueError('VersionMeta substibution requires the same suffix: {} vs. {}'.format(
+            raise ValueError('VersionMeta substitution requires the same suffix: {} vs. {}'.format(
                 self.suffix, other.suffix))
-
-        def _verdiff(v1, v2):
-            if None in (v1, v2):
-                return None
-            return v1 - v2
 
         return VersionDelta(
             major=_verdiff(self.major, other.major),
@@ -158,13 +231,13 @@ class VersionDelta(object):
     """
     __slots__ = '_major', '_minor', '_maintenance', '_build', '_sver', '_hashcode'
 
-    def __new__(cls, major=0, minor=0, maintenance=0, build=0, sver=0):
+    def __new__(cls, major=None, minor=None, maintenance=None, build=None, sver=None):
         self = object.__new__(cls)
-        self._major = 0 if major is None else major
-        self._minor = 0 if minor is None else minor
-        self._maintenance = 0 if maintenance is None else maintenance
-        self._build = 0 if build is None else build
-        self._sver = 0 if sver is None else sver
+        self._major = major
+        self._minor = minor
+        self._maintenance = maintenance
+        self._build = build
+        self._sver = sver
         self._hashcode = -1
         return self
 
@@ -210,11 +283,11 @@ class VersionDelta(object):
     def __add__(self, other):
         if isinstance(other, VersionDelta):
             return VersionDelta(
-                self._major + other._major,
-                self._minor + other._minor,
-                self._maintenance + other._maintenance,
-                self._build + other._build,
-                self._sver + other._sver
+                _veradd(self._major, other._major),
+                _veradd(self._minor, other._minor),
+                _veradd(self._maintenance, other._maintenance),
+                _veradd(self._build, other._build),
+                _veradd(self._sver, other._sver)
             )
         return NotImplemented
 
@@ -227,11 +300,11 @@ class VersionDelta(object):
 
     def __neg__(self):
         return VersionDelta(
-            -self._major,
-            -self._minor,
-            -self._maintenance,
-            -self._build,
-            -self._sver
+            _verrev(self._major),
+            _verrev(self._minor),
+            _verrev(self._maintenance),
+            _verrev(self._build),
+            _verrev(self._sver)
         )
 
     def __pos__(self):
@@ -239,11 +312,11 @@ class VersionDelta(object):
 
     def __abs__(self):
         return VersionDelta(
-            self._major if self._major > 0 else -self._major,
-            self._minor if self._minor > 0 else -self._minor,
-            self._maintenance if self._maintenance > 0 else -self._maintenance,
-            self._build if self._build > 0 else -self._build,
-            self._sver if self._sver > 0 else -self._sver
+            _verabs(self._major),
+            _verabs(self._minor),
+            _verabs(self._maintenance),
+            _verabs(self._build),
+            _verabs(self._sver)
         )
 
     def __mul__(self, other):
@@ -251,11 +324,11 @@ class VersionDelta(object):
             # for CPython compatibility, we cannot use
             # our __class__ here, but need a real VersionDelta
             return VersionDelta(
-                self._major * other,
-                self._minor * other,
-                self._maintenance * other,
-                self._build * other,
-                self._sver * other
+                _vermul(self._major, other),
+                _vermul(self._minor, other),
+                _vermul(self._maintenance, other),
+                _vermul(self._build, other),
+                _vermul(self._sver, other)
             )
         return NotImplemented
 
@@ -295,7 +368,7 @@ class VersionDelta(object):
 
     def _cmp(self, other):
         assert isinstance(other, VersionDelta)
-        return _cmp(self._getstate(), other._getstate())
+        return _cmp(self._getstate(none_as=0), other._getstate(none_as=0))
 
     def __hash__(self):
         if self._hashcode == -1:
@@ -304,17 +377,18 @@ class VersionDelta(object):
 
     def __bool__(self):
         return (
-            self._major != 0 or
-            self._minor != 0 or
-            self._maintenance != 0 or
-            self._build != 0 or
-            self._sver != 0
+            not self._major or
+            not self._minor or
+            not self._maintenance or
+            not self._build or
+            not self._sver
         )
 
     # Pickle support.
 
-    def _getstate(self):
-        return (self._major, self._minor, self._maintenance, self._build, self._sver)
+    def _getstate(self, none_as=None):
+        s = (self._major, self._minor, self._maintenance, self._build, self._sver)
+        return tuple([none_as if i is None else i for i in s])
 
     def __reduce__(self):
         return (self.__class__, self._getstate())
@@ -341,10 +415,6 @@ class FlexVersion(object):
     """
     Main version utility functions.
     """
-    LESS_THAN = -1
-    EQUAL = 0
-    BIGGER_THAN = 1
-
     ordered_suffix = None
 
     @classmethod
@@ -387,16 +457,16 @@ class FlexVersion(object):
         if None in (v1, v2):
             return None
 
-        delta = v1.__sub__(v2, ignore_suffix=True)
+        delta = v1.substitute(v2, ignore_suffix=True)
 
         # Compare non-suffix part
-        old_sver = delta.sver
+        old_sver = 0 if delta.sver is None else delta.sver
         delta._sver = 0
 
         if delta > VersionDelta.zero:
-            return cls.BIGGER_THAN
+            return 1
         elif delta < VersionDelta.zero:
-            return cls.LESS_THAN
+            return -1
 
         if compare_suffix_version:
             # Suffix
@@ -408,22 +478,17 @@ class FlexVersion(object):
             else:
                 s1 = '' if v1.suffix is None else v1.suffix
                 s2 = '' if v2.suffix is None else v2.suffix
-                if s1 > s2:
-                    suffix_res = cls.BIGGER_THAN
-                elif s1 < s2:
-                    suffix_res = cls.LESS_THAN
-                else:
-                    suffix_res = cls.EQUAL
+                suffix_res = 1 if s1 > s2 else -1 if s1 < s2 else 0
             # Suffix version
-            if suffix_res != cls.EQUAL:
+            if suffix_res != 0:
                 return suffix_res
             else:
                 if old_sver > 0:
-                    return cls.BIGGER_THAN
+                    return 1
                 elif old_sver < 0:
-                    return cls.LESS_THAN
+                    return -1
                 else:
-                    return cls.EQUAL
+                    return 0
 
     @classmethod
     def in_range(cls, version, minv, maxv, compare_suffix_version=True):
@@ -443,14 +508,13 @@ class FlexVersion(object):
 
         res = cls.compares(
             minv, maxv, compare_suffix_version=compare_suffix_version)
-        if res > cls.EQUAL:
+        if res > 0:
             raise ValueError('The minv ({}) should be a lower/equal version against maxv ({}).'
                              .format(minv, maxv))
 
         res = cls.compares(
             minv, version, compare_suffix_version=compare_suffix_version)
-        if res <= cls.EQUAL \
-                and cls.compares(version, maxv) <= cls.EQUAL:
+        if res <= 0 and cls.compares(version, maxv) <= 0:
             return True
 
         return False
@@ -493,6 +557,21 @@ if __name__ == '__main__':
     assert vm.major == 1
     assert vm.minor == 0
 
+    # VersionMeta addition
+    v = VersionMeta('flexver-1.0.0-rc0')
+    d = VersionDelta(sver=1)
+    assert str(v.add(d)) == 'flexver-1.0.0-rc1'
+    try:
+        # Illeage addition
+        v = VersionMeta('flexver-1.0.0-rc0')
+        d = VersionDelta(sver=-1)
+        assert v + d
+    except Exception:
+        pass
+    v = VersionMeta('flexver-1.0')
+    d = VersionDelta(maintenance=0, sver=1)
+    assert str(v.add(d, suffix='rc')) == 'flexver-1.0.0-rc1'
+
     # VersionMeta substitution and comparison
 
     v1 = VersionMeta('flexver-1.0.0-rc0')
@@ -502,12 +581,12 @@ if __name__ == '__main__':
     v5 = VersionMeta('flexver-1.1.0-final')
 
     try:
-        v1 - v3
+        v1.substitute(v3)
     except ValueError as e:
         pass
 
     try:
-        assert v5 - v1
+        assert v5.substitute(v1)
     except ValueError as e:
         pass
 
@@ -545,9 +624,11 @@ if __name__ == '__main__':
     assert FlexVersion.compares('flexver-1.1.1-rc0', 'flexver-1.1.2-rc0') < 0
 
     FlexVersion.ordered_suffix = [None, 'alpha', 'beta', 'rc', 'final']
-    assert FlexVersion.compares('flexver-1.0.0-beta', 'flexver-1.0.0-alpha') > 0
+    assert FlexVersion.compares(
+        'flexver-1.0.0-beta', 'flexver-1.0.0-alpha') > 0
     assert FlexVersion.compares('flexver-1.0.0-rc', 'flexver-1.0.0-alpha') > 0
-    assert FlexVersion.compares('flexver-1.0.0-final', 'flexver-1.0.0-alpha') > 0
+    assert FlexVersion.compares(
+        'flexver-1.0.0-final', 'flexver-1.0.0-alpha') > 0
     assert FlexVersion.compares('flexver-1.0.0-rc0', 'flexver-1.0.0-final') < 0
     assert FlexVersion.compares('flexver-1.0.0-rc0', 'flexver-1.1.0-final') < 0
     assert FlexVersion.compares('flexver-1.0', 'flexver-1.0.0-final') < 0

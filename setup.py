@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="flex_version",
-    version='1.1.0',
+    version='1.1.2',
     url='https://github.com/caesar0301/FlexVersion',
     author='Xiaming Chen',
     author_email='chenxm35@gmail.com',
