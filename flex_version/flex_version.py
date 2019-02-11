@@ -115,21 +115,20 @@ class VersionMeta(object):
         else:
             _cmperror(self, other)
 
-    def __sub__(self, other):
+    def __sub__(self, other, ignore_prefix=False, ignore_suffix=False):
         assert isinstance(other, VersionMeta)
 
-        if self.prefix != other.prefix:
+        if not ignore_prefix and self.prefix != other.prefix:
             raise ValueError('VersionMeta substibution requires the same prefix: {} vs. {}'.format(
                 self.prefix, other.prefix))
 
-        if self.suffix != other.suffix:
+        if not ignore_suffix and self.suffix != other.suffix:
             raise ValueError('VersionMeta substibution requires the same suffix: {} vs. {}'.format(
                 self.suffix, other.suffix))
 
         def _verdiff(v1, v2):
             if None in (v1, v2):
-                # The difference from None is zero
-                return 0
+                return None
             return v1 - v2
 
         return VersionDelta(
@@ -161,11 +160,11 @@ class VersionDelta(object):
 
     def __new__(cls, major=0, minor=0, maintenance=0, build=0, sver=0):
         self = object.__new__(cls)
-        self._major = major
-        self._minor = minor
-        self._maintenance = maintenance
-        self._build = build
-        self._sver = sver
+        self._major = 0 if major is None else major
+        self._minor = 0 if minor is None else minor
+        self._maintenance = 0 if maintenance is None else maintenance
+        self._build = 0 if build is None else build
+        self._sver = 0 if sver is None else sver
         self._hashcode = -1
         return self
 
@@ -342,80 +341,17 @@ class FlexVersion(object):
     """
     Main version utility functions.
     """
-    VERSION_LESS_THAN = -1
-    VERSION_EQUAL = 0
-    VERSION_BIGGER_THAN = 1
+    LESS_THAN = -1
+    EQUAL = 0
+    BIGGER_THAN = 1
+
+    ordered_suffix = None
 
     @classmethod
     def parse_version(cls, version_str):
         """Convert a version string to VersionMeta.
         """
         return VersionMeta(version_str)
-
-    @classmethod
-    def in_range(cls, version, minv, maxv, match_prefix=True, compare_suffix_version=True):
-        """
-        Check if a version exists in a range of (minv, maxv).
-        :return True or False
-        """
-        if not isinstance(version, VersionMeta):
-            version = VersionMeta(version)
-        if not isinstance(minv, VersionMeta):
-            minv = VersionMeta(minv)
-        if not isinstance(maxv, VersionMeta):
-            maxv = VersionMeta(maxv)
-
-        if match_prefix and not (cls.shares_prefix(version, minv) and cls.shares_prefix(version, maxv)):
-            return False
-
-        res = cls.compares(minv, maxv, match_prefix=match_prefix,
-                           compare_suffix_version=compare_suffix_version)
-        if res > cls.VERSION_EQUAL:
-            raise ValueError('The minv ({}) should be a lower/equal version against maxv ({}).'
-                             .format(minv, maxv))
-
-        res = cls.compares(minv, version, match_prefix=match_prefix,
-                           compare_suffix_version=compare_suffix_version)
-        if res <= cls.VERSION_EQUAL \
-                and cls.compares(version, maxv) <= cls.VERSION_EQUAL:
-            return True
-
-        return False
-
-    @classmethod
-    def compares(cls, v1, v2, match_prefix=True, compare_suffix_version=True):
-        """
-        Compare the level of two versions.
-        @param match_prefix: If true, only compare versions with the same prefix, otherwise omitted.
-        @param compare_suffix_version: If true, consider version quatity when comparing versions.
-        @return -1, 0 or 1
-        """
-        if not isinstance(v1, VersionMeta):
-            v1 = VersionMeta(v1)
-        if not isinstance(v2, VersionMeta):
-            v2 = VersionMeta(v2)
-
-        if None in (v1, v2):
-            return None
-
-        if match_prefix and v1.prefix != v2.prefix:
-            raise ValueError('The compared versions should take the same prefix: {} vs. {}.'
-                             .format(v1.prefix, v2.prefix))
-
-        # if compare_suffix_version and v1.suffix != v2.suffix:
-        #     raise ValueError('The compared versions should take the same suffix: {} vs. {}.'
-        #                      .format(v1.suffix, v2.suffix))
-
-        delta = v1 - v2
-        if not compare_suffix_version:
-            delta.sver = 0
-
-        if delta == VersionDelta.zero:
-            return cls.VERSION_EQUAL
-        elif delta > VersionDelta.zero:
-            return cls.VERSION_BIGGER_THAN
-        else:
-            return cls.VERSION_LESS_THAN
 
     @classmethod
     def shares_prefix(cls, v1, v2):
@@ -427,9 +363,101 @@ class FlexVersion(object):
             v2 = VersionMeta(v2)
         return v1.prefix == v2.prefix
 
+    @classmethod
+    def shares_suffix(cls, v1, v2):
+        """ Check if two versions share the same prefix
+        """
+        if not isinstance(v1, VersionMeta):
+            v1 = VersionMeta(v1)
+        if not isinstance(v2, VersionMeta):
+            v2 = VersionMeta(v2)
+        return v1.suffix == v2.suffix
+
+    @classmethod
+    def compares(cls, v1, v2, compare_suffix_version=True):
+        """
+        Compare the level of two versions.
+        @return -1, 0 or 1
+        """
+        if not isinstance(v1, VersionMeta):
+            v1 = VersionMeta(v1)
+        if not isinstance(v2, VersionMeta):
+            v2 = VersionMeta(v2)
+
+        if None in (v1, v2):
+            return None
+
+        delta = v1.__sub__(v2, ignore_suffix=True)
+
+        # Compare non-suffix part
+        old_sver = delta.sver
+        delta._sver = 0
+
+        if delta > VersionDelta.zero:
+            return cls.BIGGER_THAN
+        elif delta < VersionDelta.zero:
+            return cls.LESS_THAN
+
+        if compare_suffix_version:
+            # Suffix
+            suffix_res = None
+            if isinstance(cls.ordered_suffix, list):
+                # Enable suffix ordering
+                suffix_res = cls.ordered_suffix.index(
+                    v1.suffix) - cls.ordered_suffix.index(v2.suffix)
+            else:
+                s1 = '' if v1.suffix is None else v1.suffix
+                s2 = '' if v2.suffix is None else v2.suffix
+                if s1 > s2:
+                    suffix_res = cls.BIGGER_THAN
+                elif s1 < s2:
+                    suffix_res = cls.LESS_THAN
+                else:
+                    suffix_res = cls.EQUAL
+            # Suffix version
+            if suffix_res != cls.EQUAL:
+                return suffix_res
+            else:
+                if old_sver > 0:
+                    return cls.BIGGER_THAN
+                elif old_sver < 0:
+                    return cls.LESS_THAN
+                else:
+                    return cls.EQUAL
+
+    @classmethod
+    def in_range(cls, version, minv, maxv, compare_suffix_version=True):
+        """
+        Check if a version exists in a range of (minv, maxv).
+        :return True or False
+        """
+        if not isinstance(version, VersionMeta):
+            version = VersionMeta(version)
+        if not isinstance(minv, VersionMeta):
+            minv = VersionMeta(minv)
+        if not isinstance(maxv, VersionMeta):
+            maxv = VersionMeta(maxv)
+
+        if not (cls.shares_prefix(version, minv) and cls.shares_prefix(version, maxv)):
+            return False
+
+        res = cls.compares(
+            minv, maxv, compare_suffix_version=compare_suffix_version)
+        if res > cls.EQUAL:
+            raise ValueError('The minv ({}) should be a lower/equal version against maxv ({}).'
+                             .format(minv, maxv))
+
+        res = cls.compares(
+            minv, version, compare_suffix_version=compare_suffix_version)
+        if res <= cls.EQUAL \
+                and cls.compares(version, maxv) <= cls.EQUAL:
+            return True
+
+        return False
+
 
 if __name__ == '__main__':
-    
+
     # VersionMeta parsers
 
     v = 'flexver-1.0.0-rc1'
@@ -465,7 +493,7 @@ if __name__ == '__main__':
     assert vm.major == 1
     assert vm.minor == 0
 
-    # VersionMeta substitution
+    # VersionMeta substitution and comparison
 
     v1 = VersionMeta('flexver-1.0.0-rc0')
     v2 = VersionMeta('flexver-1.0.0-rc4')
@@ -473,25 +501,27 @@ if __name__ == '__main__':
     v4 = VersionMeta('flexver-1.1.0-rc0')
     v5 = VersionMeta('flexver-1.1.0-final')
 
-    # VersionMeta comparisons
+    try:
+        v1 - v3
+    except ValueError as e:
+        pass
+
+    try:
+        assert v5 - v1
+    except ValueError as e:
+        pass
 
     assert v1 < v2
     assert v1 <= v2
-    try:
-        assert v1 < v3
-    except ValueError as e:
-        print('INFO: Caught error: %s' % e)
     assert v3 == v3
     assert v5 >= v3
-    try:
-        assert v5 > v1
-    except ValueError as e:
-        print('INFO: Caught error: %s' % e)
+
+    # FlexVersion comparisons
 
     try:
         FlexVersion.compares('flexver-1.0', 'other-1.0')
     except ValueError as e:
-        print('INFO: Caught error: %s' % e)
+        pass
 
     assert FlexVersion.compares('flexver-1.0', 'flexver-1.0') == 0
     assert FlexVersion.compares('flexver-1.0', 'flexver-2.0') < 0
@@ -514,6 +544,20 @@ if __name__ == '__main__':
     assert FlexVersion.compares('flexver-1.1.1-rc0', 'flexver-1.1.1-rc2') < 0
     assert FlexVersion.compares('flexver-1.1.1-rc0', 'flexver-1.1.2-rc0') < 0
 
+    FlexVersion.ordered_suffix = [None, 'alpha', 'beta', 'rc', 'final']
+    assert FlexVersion.compares('flexver-1.0.0-beta', 'flexver-1.0.0-alpha') > 0
+    assert FlexVersion.compares('flexver-1.0.0-rc', 'flexver-1.0.0-alpha') > 0
+    assert FlexVersion.compares('flexver-1.0.0-final', 'flexver-1.0.0-alpha') > 0
+    assert FlexVersion.compares('flexver-1.0.0-rc0', 'flexver-1.0.0-final') < 0
+    assert FlexVersion.compares('flexver-1.0.0-rc0', 'flexver-1.1.0-final') < 0
+    assert FlexVersion.compares('flexver-1.0', 'flexver-1.0.0-final') < 0
+
+    FlexVersion.ordered_suffix = ['alpha', 'beta', 'rc', 'final', None]
+    assert FlexVersion.compares('flexver-1.0', 'flexver-1.0.0-final') > 0
+
+    # FlexVersion ranging
+
+    FlexVersion.ordered_suffix = None
     assert FlexVersion.in_range('flexver-1.1', 'flexver-1.0', 'flexver-1.2')
     assert not FlexVersion.in_range(
         'flexver-1.1', 'flexver-1.2', 'flexver-1.3')
