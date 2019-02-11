@@ -37,25 +37,6 @@ pip install -U flex_version
 from flex_version import FlexVersion
 ```
 
-1. Class `VersionMeta`
-
-Meta class to store parsed data parts of versioning string.
-
-The FlexVersion also supports versioned suffix, such as `flex_version-1.0-beta1`. You can
-trigger this feature with a given grouped regex string (`.*(?P<suffix_version>\d+)` as default)
-to the initializer, e.g.,
-
-```python
-from flex_version import VersionMeta
-VersionMeta._suffix_regex = '.*(?P<suffix_version>\d+)-\w+'
-# Support versioned suffix such as `flex_version-1.0-beta1-foo`
-# `suffix_version` is a predefined group name to extract the version number.
-# You can also change the group name by
-VersionMeta._suffix_version_sig = 'suffix_version'
-```
-
-2. Class `FlexVersion`
-
 Utility class for available methods:
 
 - `parse_version(ver_str)`: Parse a versioning string into `VersionMeta`.
@@ -65,6 +46,8 @@ Utility class for available methods:
 - `compares(v1, v2)`: Compare the level of two versions, returns -1 (lower), 0 (equal), and 1 (larger).
 
 - `shares_prefix(v1, v2)`: Check if two versions sharing the same prefix.
+
+- `shares_suffix(v1, v2)`: Check if two versions sharing the same suffix.
 
 
 ## By
