@@ -46,6 +46,72 @@ def _vermul(v1, integer):
     return v1 + integer
 
 
+class FlexVersion(object):
+    """
+    Main version utility functions.
+    """
+    ordered_suffix = None
+
+    @classmethod
+    def parse(cls, version_str):
+        """Convert a version string to VersionMeta.
+        """
+        return VersionMeta(version_str)
+
+    @classmethod
+    def parse_version(cls, version_str):
+        """Convert a version string to VersionMeta.
+        """
+        return VersionMeta(version_str)
+
+    @classmethod
+    def shares_prefix(cls, v1, v2):
+        """ Check if two versions share the same prefix
+        """
+        if not isinstance(v1, VersionMeta):
+            v1 = VersionMeta(v1)
+        if not isinstance(v2, VersionMeta):
+            v2 = VersionMeta(v2)
+        return v1.shares_prefix(v2)
+
+    @classmethod
+    def shares_suffix(cls, v1, v2):
+        """ Check if two versions share the same prefix
+        """
+        if not isinstance(v1, VersionMeta):
+            v1 = VersionMeta(v1)
+        if not isinstance(v2, VersionMeta):
+            v2 = VersionMeta(v2)
+        return v1.shares_suffix(v2)
+
+    @classmethod
+    def compares(cls, v1, v2, compare_suffix_version=True):
+        """
+        Compare the level of two versions.
+        @return -1, 0 or 1
+        """
+        if not isinstance(v1, VersionMeta):
+            v1 = VersionMeta(v1)
+        if not isinstance(v2, VersionMeta):
+            v2 = VersionMeta(v2)
+        return v1.compares(v2)
+
+    @classmethod
+    def in_range(cls, version, minv, maxv, compare_suffix_version=True):
+        """
+        Check if a version exists in a range of (minv, maxv).
+        :return True or False
+        """
+        if not isinstance(version, VersionMeta):
+            version = VersionMeta(version)
+        if not isinstance(minv, VersionMeta):
+            minv = VersionMeta(minv)
+        if not isinstance(maxv, VersionMeta):
+            maxv = VersionMeta(maxv)
+
+        return version.in_range(minv, maxv)
+
+
 class VersionMeta(object):
     """
     A meta representation of version control, e.g., prefix-x.y.z.b-suffix
@@ -139,31 +205,31 @@ class VersionMeta(object):
 
     def __eq__(self, other):
         if isinstance(other, VersionMeta):
-            return self.substitute(other) == VersionDelta.zero
+            return self.compares(other) == 0
         else:
             return False
 
     def __le__(self, other):
         if isinstance(other, VersionMeta):
-            return self.substitute(other) <= VersionDelta.zero
+            return self.compares(other) <= 0
         else:
             _cmperror(self, other)
 
     def __lt__(self, other):
         if isinstance(other, VersionMeta):
-            return self.substitute(other) < VersionDelta.zero
+            return self.compares(other) < 0
         else:
             _cmperror(self, other)
 
     def __ge__(self, other):
         if isinstance(other, VersionMeta):
-            return self.substitute(other) >= VersionDelta.zero
+            return self.compares(other) >= 0
         else:
             _cmperror(self, other)
 
     def __gt__(self, other):
         if isinstance(other, VersionMeta):
-            return self.substitute(other) > VersionDelta.zero
+            return self.compares(other) > 0
         else:
             _cmperror(self, other)
 
@@ -211,6 +277,83 @@ class VersionMeta(object):
             build=_verdiff(self.build, other.build),
             sver=_verdiff(self.suffix_version, other.suffix_version)
         )
+
+    def shares_prefix(self, other):
+        """ Check if two versions share the same prefix
+        """
+        if not isinstance(other, VersionMeta):
+            other = VersionMeta(other)
+        return self.prefix == other.prefix
+
+    def shares_suffix(self, other):
+        """ Check if two versions share the same suffix
+        """
+        if not isinstance(other, VersionMeta):
+            other = VersionMeta(other)
+        return self.suffix == other.suffix
+
+    def compares(self, other, compare_suffix_version=True):
+        """
+        Compare the level of two versions.
+        @return -1, 0 or 1
+        """
+        if not isinstance(other, VersionMeta):
+            return NotImplemented
+
+        v1, v2 = self, other
+        delta = v1.substitute(v2, ignore_suffix=True)
+
+        # Compare non-suffix part
+        old_sver = 0 if delta.sver is None else delta.sver
+        delta._sver = 0
+
+        if delta > VersionDelta.zero:
+            return 1
+        elif delta < VersionDelta.zero:
+            return -1
+
+        if compare_suffix_version:
+
+            # Suffix
+            suffix_res = None
+            if isinstance(FlexVersion.ordered_suffix, list):
+                # Enable suffix ordering
+                suffix_res = FlexVersion.ordered_suffix.index(
+                    v1.suffix) - FlexVersion.ordered_suffix.index(v2.suffix)
+            else:
+                s1 = '' if v1.suffix is None else v1.suffix
+                s2 = '' if v2.suffix is None else v2.suffix
+                suffix_res = 1 if s1 > s2 else -1 if s1 < s2 else 0
+
+            # Suffix version
+            if suffix_res != 0:
+                return suffix_res
+            else:
+                if old_sver > 0:
+                    return 1
+                elif old_sver < 0:
+                    return -1
+                else:
+                    return 0
+
+    def in_range(self, minv, maxv, compare_suffix_version=True):
+        """
+        Check if a version exists in a range of (minv, maxv).
+        :return True or False
+        """
+        if not isinstance(minv, VersionMeta):
+            minv = VersionMeta(minv)
+        if not isinstance(maxv, VersionMeta):
+            maxv = VersionMeta(maxv)
+
+        if not (self.shares_prefix(minv) and self.shares_prefix(maxv)):
+            return False
+
+        if minv.compares(maxv, compare_suffix_version) > 0:
+            raise ValueError('The minv ({}) should be a lower/equal version against maxv ({}).'
+                             .format(minv, maxv))
+
+        return minv.compares(self, compare_suffix_version) <= 0 and self.compares(maxv) <= 0
 
 
 class VersionDelta(object):
@@ -409,115 +552,6 @@ VersionDelta.max = VersionDelta(
     sver=999999999
 )
 VersionDelta.zero = VersionDelta(0, 0, 0, 0, 0)
-
-
-class FlexVersion(object):
-    """
-    Main version utility functions.
-    """
-    ordered_suffix = None
-
-    @classmethod
-    def parse_version(cls, version_str):
-        """Convert a version string to VersionMeta.
-        """
-        return VersionMeta(version_str)
-
-    @classmethod
-    def shares_prefix(cls, v1, v2):
-        """ Check if two versions share the same prefix
-        """
-        if not isinstance(v1, VersionMeta):
-            v1 = VersionMeta(v1)
-        if not isinstance(v2, VersionMeta):
-            v2 = VersionMeta(v2)
-        return v1.prefix == v2.prefix
-
-    @classmethod
-    def shares_suffix(cls, v1, v2):
-        """ Check if two versions share the same prefix
-        """
-        if not isinstance(v1, VersionMeta):
-            v1 = VersionMeta(v1)
-        if not isinstance(v2, VersionMeta):
-            v2 = VersionMeta(v2)
-        return v1.suffix == v2.suffix
-
-    @classmethod
-    def compares(cls, v1, v2, compare_suffix_version=True):
-        """
-        Compare the level of two versions.
-        @return -1, 0 or 1
-        """
-        if not isinstance(v1, VersionMeta):
-            v1 = VersionMeta(v1)
-        if not isinstance(v2, VersionMeta):
-            v2 = VersionMeta(v2)
-
-        if None in (v1, v2):
-            return None
-
-        delta = v1.substitute(v2, ignore_suffix=True)
-
-        # Compare non-suffix part
-        old_sver = 0 if delta.sver is None else delta.sver
-        delta._sver = 0
-
-        if delta > VersionDelta.zero:
-            return 1
-        elif delta < VersionDelta.zero:
-            return -1
-
-        if compare_suffix_version:
-            # Suffix
-            suffix_res = None
-            if isinstance(cls.ordered_suffix, list):
-                # Enable suffix ordering
-                suffix_res = cls.ordered_suffix.index(
-                    v1.suffix) - cls.ordered_suffix.index(v2.suffix)
-            else:
-                s1 = '' if v1.suffix is None else v1.suffix
-                s2 = '' if v2.suffix is None else v2.suffix
-                suffix_res = 1 if s1 > s2 else -1 if s1 < s2 else 0
-            # Suffix version
-            if suffix_res != 0:
-                return suffix_res
-            else:
-                if old_sver > 0:
-                    return 1
-                elif old_sver < 0:
-                    return -1
-                else:
-                    return 0
-
-    @classmethod
-    def in_range(cls, version, minv, maxv, compare_suffix_version=True):
-        """
-        Check if a version exists in a range of (minv, maxv).
-        :return True or False
-        """
-        if not isinstance(version, VersionMeta):
-            version = VersionMeta(version)
-        if not isinstance(minv, VersionMeta):
-            minv = VersionMeta(minv)
-        if not isinstance(maxv, VersionMeta):
-            maxv = VersionMeta(maxv)
-
-        if not (cls.shares_prefix(version, minv) and cls.shares_prefix(version, maxv)):
-            return False
-
-        res = cls.compares(
-            minv, maxv, compare_suffix_version=compare_suffix_version)
-        if res > 0:
-            raise ValueError('The minv ({}) should be a lower/equal version against maxv ({}).'
-                             .format(minv, maxv))
-
-        res = cls.compares(
-            minv, version, compare_suffix_version=compare_suffix_version)
-        if res <= 0 and cls.compares(version, maxv) <= 0:
-            return True
-
-        return False
 
 
 if __name__ == '__main__':
