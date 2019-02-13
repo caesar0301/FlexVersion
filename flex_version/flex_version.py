@@ -16,34 +16,31 @@ def _cmperror(x, y):
                     type(x).__name__, type(y).__name__))
 
 
-def _verdiff(v1, v2):
-    if None in (v1, v2):
-        return None
-    return v1 - v2
+def _verdiff(v1, v2, none_as=None):
+    v1 = none_as if v1 is None else v1
+    v2 = none_as if v2 is None else v2
+    return None if None in (v1, v2) else v1 - v2
 
 
-def _veradd(v1, v2):
-    if None in (v1, v2):
-        return None
-    return v1 + v2
+def _veradd(v1, v2, none_as=None):
+    v1 = none_as if v1 is None else v1
+    v2 = none_as if v2 is None else v2
+    return None if None in (v1, v2) else v1 + v2
 
 
-def _verrev(v1):
-    if v1 is None:
-        return None
-    return -v1
+def _verrev(v1, none_as=None):
+    v1 = none_as if v1 is None else v1
+    return None if v1 is None else -v1
 
 
-def _verabs(v1):
-    if v1 is None:
-        return None
-    return v1 if v1 > 0 else -v1
+def _verabs(v1, none_as=None):
+    v1 = none_as if v1 is None else v1
+    return None if v1 is None else v1 if v1 > 0 else -v1
 
 
-def _vermul(v1, integer):
-    if v1 is None:
-        return None
-    return v1 + integer
+def _vermul(v1, integer, none_as=None):
+    v1 = none_as if v1 is None else v1
+    return None if v1 is None else v1 + integer
 
 
 class FlexVersion(object):
@@ -275,7 +272,8 @@ class VersionMeta(object):
             minor=_verdiff(self.minor, other.minor),
             maintenance=_verdiff(self.maintenance, other.maintenance),
             build=_verdiff(self.build, other.build),
-            sver=None if ignore_suffix else _verdiff(self.suffix_version, other.suffix_version)
+            sver=None if ignore_suffix else _verdiff(
+                self.suffix_version, other.suffix_version)
         )
 
     def shares_prefix(self, other):
@@ -301,6 +299,7 @@ class VersionMeta(object):
             return NotImplemented
 
         delta = self.substitute(other, ignore_suffix=True)
+
         if delta > VersionDelta.zero:
             return 1
         elif delta < VersionDelta.zero:
@@ -552,9 +551,9 @@ if __name__ == '__main__':
 
     # VersionMeta parsers
 
-    v = 'flexver-1.0.0-rc1'
+    v = 'prev-1.0.0-rc1'
     vm = VersionMeta(v)
-    assert vm.prefix == 'flexver'
+    assert vm.prefix == 'prev'
     assert vm.major == 1
     assert vm.minor == 0
     assert vm.maintenance == 0
@@ -562,9 +561,9 @@ if __name__ == '__main__':
     assert vm.suffix == 'rc'
     assert vm.suffix_version == 1
 
-    v = 'flexver-1.0.0-final'
+    v = 'prev-1.0.0-final'
     vm = VersionMeta(v)
-    assert vm.prefix == 'flexver'
+    assert vm.prefix == 'prev'
     assert vm.major == 1
     assert vm.minor == 0
     assert vm.maintenance == 0
@@ -578,107 +577,116 @@ if __name__ == '__main__':
     assert vm.major == 1
     assert vm.minor == 0
     assert vm.maintenance == 0
+    assert vm.build is None
+    assert vm.suffix is None
+    assert vm.suffix_version is None
 
     v = '1.0'
     vm = VersionMeta(v)
     assert vm.prefix is None
     assert vm.major == 1
     assert vm.minor == 0
+    assert vm.maintenance == None
+    assert vm.build is None
+    assert vm.suffix is None
+    assert vm.suffix_version is None
 
     # VersionMeta addition
-    v = VersionMeta('flexver-1.0.0-rc0')
+    v = VersionMeta('prev-1.0.0-rc0')
     d = VersionDelta(sver=1)
-    assert str(v.add(d)) == 'flexver-1.0.0-rc1'
+    assert str(v.add(d)) == 'prev-1.0.0-rc1'
+
     try:
         # Illeage addition
-        v = VersionMeta('flexver-1.0.0-rc0')
+        v = VersionMeta('prev-1.0.0-rc0')
         d = VersionDelta(sver=-1)
         assert v + d
     except Exception:
         pass
-    v = VersionMeta('flexver-1.0')
+
+    v = VersionMeta('prev-1.0')
     d = VersionDelta(maintenance=0, sver=1)
-    assert str(v.add(d, suffix='rc')) == 'flexver-1.0.0-rc1'
+    assert str(v.add(d, suffix='rc')) == 'prev-1.0.0-rc1'
 
     # VersionMeta substitution and comparison
 
-    v1 = VersionMeta('flexver-1.0.0-rc0')
-    v2 = VersionMeta('flexver-1.0.0-rc4')
-    v3 = VersionMeta('flexver-1.0.0-final')
-    v4 = VersionMeta('flexver-1.1.0-rc0')
-    v5 = VersionMeta('flexver-1.1.0-final')
+    v1 = VersionMeta('prev-1.0.0-rc0')
+    v2 = VersionMeta('prev-1.0.0-rc4')
+    v3 = VersionMeta('prev-1.0.0-final')
+    v4 = VersionMeta('prev-1.1.0-rc0')
+    v5 = VersionMeta('prev-1.1.0-final')
 
     try:
         v1.substitute(v3)
     except ValueError as e:
-        pass
+        v1.substitute(v3, ignore_suffix=True)
 
     try:
         assert v5.substitute(v1)
     except ValueError as e:
-        pass
+        assert v5.substitute(v1, ignore_suffix=True)
 
     assert v1 < v2
     assert v1 <= v2
     assert v3 == v3
-    assert v5 >= v3
+    assert not v5 < v3
 
     # FlexVersion comparisons
+    fv = FlexVersion
 
     try:
-        FlexVersion.compares('flexver-1.0', 'other-1.0')
+        fv.compares('prev-1.0', 'other-1.0')
     except ValueError as e:
         pass
 
-    assert FlexVersion.compares('flexver-1.0', 'flexver-1.0') == 0
-    assert FlexVersion.compares('flexver-1.0', 'flexver-2.0') < 0
-    assert FlexVersion.compares('flexver-2.0', 'flexver-1.0') > 0
+    assert fv.compares('prev-1.0', 'prev-1.0') == 0
+    assert fv.compares('prev-1.0', 'prev-2.0') < 0
+    assert fv.compares('prev-2.0', 'prev-1.0') > 0
+    assert fv.compares('prev-1.0.0', 'prev-1.0.0') == 0
+    assert fv.compares('prev-1.0.0', 'prev-2.0.0') < 0
+    assert fv.compares('prev-2.0.0', 'prev-1.0.0') > 0
+    assert fv.compares('prev-1.0.0', 'prev-1.1.0') < 0
+    assert fv.compares('prev-1.0.0', 'prev-1.0.1') < 0
+    assert fv.compares('prev-1.0.0', 'prev-1.1.1') < 0
+    assert fv.compares('prev-1.1.0', 'prev-1.0.0') > 0
+    assert fv.compares('prev-1.0.1', 'prev-1.0.0') > 0
+    assert fv.compares('prev-1.1.1', 'prev-1.0.0') > 0
+    assert fv.compares('prev-1.2.3', 'prev-1.3.2') < 0
+    assert fv.compares('prev-1.1.1-rc0', 'prev-1.1.1-rc2') < 0
+    assert fv.compares('prev-1.1.1-rc0', 'prev-1.1.2-rc0') < 0
+    assert fv.compares('prev-1.1.1-rc0', 'prev-1.1.2-rc0', True) < 0
+    assert fv.compares('prev-1.1.1-rc0', 'prev-1.1.1-rc1', True) == 0
+    assert fv.compares('prev-1.0', 'prev-1.0.0-final', True) == 0
 
-    assert FlexVersion.compares('flexver-1.0.0', 'flexver-1.0.0') == 0
-    assert FlexVersion.compares('flexver-1.0.0', 'flexver-2.0.0') < 0
-    assert FlexVersion.compares('flexver-2.0.0', 'flexver-1.0.0') > 0
+    # FlexVersion comparisons with ordered suffix
+    fv.ordered_suffix = [None, 'alpha', 'beta', 'rc', 'final']
+    assert fv.compares('prev-1.0.0-beta', 'prev-1.0.0-alpha') > 0
+    assert fv.compares('prev-1.0.0-rc', 'prev-1.0.0-alpha') > 0
+    assert fv.compares('prev-1.0.0-final', 'prev-1.0.0-alpha') > 0
+    assert fv.compares('prev-1.0.0-rc0', 'prev-1.0.0-final') < 0
+    assert fv.compares('prev-1.0.0-rc0', 'prev-1.1.0-final') < 0
+    assert fv.compares('prev-1.0', 'prev-1.0.0-final') < 0
+    assert fv.compares('prev-1.0', 'prev-1.0.0-final', True) == 0
 
-    assert FlexVersion.compares('flexver-1.0.0', 'flexver-1.1.0') < 0
-    assert FlexVersion.compares('flexver-1.0.0', 'flexver-1.0.1') < 0
-    assert FlexVersion.compares('flexver-1.0.0', 'flexver-1.1.1') < 0
-
-    assert FlexVersion.compares('flexver-1.1.0', 'flexver-1.0.0') > 0
-    assert FlexVersion.compares('flexver-1.0.1', 'flexver-1.0.0') > 0
-    assert FlexVersion.compares('flexver-1.1.1', 'flexver-1.0.0') > 0
-
-    assert FlexVersion.compares('flexver-1.2.3', 'flexver-1.3.2') < 0
-
-    assert FlexVersion.compares('flexver-1.1.1-rc0', 'flexver-1.1.1-rc2') < 0
-    assert FlexVersion.compares('flexver-1.1.1-rc0', 'flexver-1.1.2-rc0') < 0
-
-    FlexVersion.ordered_suffix = [None, 'alpha', 'beta', 'rc', 'final']
-    assert FlexVersion.compares(
-        'flexver-1.0.0-beta', 'flexver-1.0.0-alpha') > 0
-    assert FlexVersion.compares('flexver-1.0.0-rc', 'flexver-1.0.0-alpha') > 0
-    assert FlexVersion.compares(
-        'flexver-1.0.0-final', 'flexver-1.0.0-alpha') > 0
-    assert FlexVersion.compares('flexver-1.0.0-rc0', 'flexver-1.0.0-final') < 0
-    assert FlexVersion.compares('flexver-1.0.0-rc0', 'flexver-1.1.0-final') < 0
-    assert FlexVersion.compares('flexver-1.0', 'flexver-1.0.0-final') < 0
-
-    FlexVersion.ordered_suffix = ['alpha', 'beta', 'rc', 'final', None]
-    assert FlexVersion.compares('flexver-1.0', 'flexver-1.0.0-final') > 0
+    # FlexVersion comparisons with ordered suffix
+    fv.ordered_suffix = ['alpha', 'beta', 'rc', 'final', None]
+    assert fv.compares('prev-1.0', 'prev-1.0.0-final') > 0
+    assert fv.compares('prev-1.0', 'prev-1.0.1-final') > 0
+    assert fv.compares('prev-1.0.0-rc0', 'prev-1.0.1-final') < 0
+    assert fv.compares('prev-1.0.1-rc0', 'prev-1.0.1-final') < 0
+    assert fv.compares('prev-1.0.2-rc0', 'prev-1.0.1-final') > 0
+    assert fv.compares('prev-1.0', 'prev-1.0.0-final', True) == 0
+    assert fv.compares('prev-1.0', 'prev-1.0.1-final', True) == 0
+    assert fv.compares('prev-1.0.0-rc0', 'prev-1.0.1-final', True) < 0
+    assert fv.compares('prev-1.0.1-rc0', 'prev-1.0.1-final', True) == 0
+    assert fv.compares('prev-1.0.2-rc0', 'prev-1.0.1-final', True) > 0
 
     # FlexVersion ranging
-
-    FlexVersion.ordered_suffix = None
-    assert FlexVersion.in_range('flexver-1.1', 'flexver-1.0', 'flexver-1.2')
-    assert not FlexVersion.in_range(
-        'flexver-1.1', 'flexver-1.2', 'flexver-1.3')
-
-    assert FlexVersion.in_range(
-        'flexver-1.0.0-rc5', 'flexver-1.0.0-rc0', 'flexver-1.0.0-rc6')
-    assert FlexVersion.in_range(
-        'flexver-1.0.0-rc5', 'flexver-1.0.0-rc0', 'flexver-1.0.0-rc5')
-    assert FlexVersion.in_range(
-        'flexver-1.0.0-rc5', 'flexver-1.0.0-rc5', 'flexver-1.0.0-rc5')
-
-    assert FlexVersion.in_range(
-        'flexver-1.0.1-rc5', 'flexver-1.0.0-rc5', 'flexver-1.0.2-rc5')
-    assert not FlexVersion.in_range(
-        'flexver-1.0.3-rc5', 'flexver-1.0.0-rc5', 'flexver-1.0.2-rc5')
+    fv.ordered_suffix = None
+    assert fv.in_range('prev-1.1', 'prev-1.0', 'prev-1.2')
+    assert not fv.in_range('prev-1.1', 'prev-1.2', 'prev-1.3')
+    assert fv.in_range('prev-1.0.0-rc5', 'prev-1.0.0-rc0', 'prev-1.0.0-rc6')
+    assert fv.in_range('prev-1.0.0-rc5', 'prev-1.0.0-rc0', 'prev-1.0.0-rc5')
+    assert fv.in_range('prev-1.0.0-rc5', 'prev-1.0.0-rc5', 'prev-1.0.0-rc5')
+    assert fv.in_range('prev-1.0.1-rc5', 'prev-1.0.0-rc5', 'prev-1.0.2-rc5')
+    assert not fv.in_range('prev-1.0.3-rc5', 'prev-1.0.0-rc5', 'prev-1.0.2-rc5')
