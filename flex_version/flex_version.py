@@ -174,6 +174,7 @@ class VersionMeta(object):
                 if suffix_version is not None:
                     self.suffix_version = int(suffix_version)
 
+    @property
     def raw_str(self):
         return self._raw
 
@@ -196,7 +197,7 @@ class VersionMeta(object):
         return ''.join(args)
 
     def __hash__(self):
-        return hash(self._raw)
+        return hash(repr(self))
 
     # Comparisons of VersionMeta objects with other.
 
@@ -344,7 +345,7 @@ class VersionMeta(object):
             raise ValueError('The minv ({}) should be a lower/equal version against maxv ({}).'
                              .format(minv, maxv))
 
-        return minv.compares(self, ignore_suffix) <= 0 and self.compares(maxv) <= 0
+        return self.compares(minv, ignore_suffix) >= 0 and self.compares(maxv, ignore_suffix) <= 0
 
 
 class VersionDelta(object):
@@ -667,6 +668,7 @@ if __name__ == '__main__':
     assert fv.compares('prev-1.0.0-rc0', 'prev-1.1.0-final') < 0
     assert fv.compares('prev-1.0', 'prev-1.0.0-final') < 0
     assert fv.compares('prev-1.0', 'prev-1.0.0-final', True) == 0
+    fv.ordered_suffix = None
 
     # FlexVersion comparisons with ordered suffix
     fv.ordered_suffix = ['alpha', 'beta', 'rc', 'final', None]
@@ -680,9 +682,9 @@ if __name__ == '__main__':
     assert fv.compares('prev-1.0.0-rc0', 'prev-1.0.1-final', True) < 0
     assert fv.compares('prev-1.0.1-rc0', 'prev-1.0.1-final', True) == 0
     assert fv.compares('prev-1.0.2-rc0', 'prev-1.0.1-final', True) > 0
+    fv.ordered_suffix = None
 
     # FlexVersion ranging
-    fv.ordered_suffix = None
     assert fv.in_range('prev-1.1', 'prev-1.0', 'prev-1.2')
     assert not fv.in_range('prev-1.1', 'prev-1.2', 'prev-1.3')
     assert fv.in_range('prev-1.0.0-rc5', 'prev-1.0.0-rc0', 'prev-1.0.0-rc6')
@@ -690,3 +692,10 @@ if __name__ == '__main__':
     assert fv.in_range('prev-1.0.0-rc5', 'prev-1.0.0-rc5', 'prev-1.0.0-rc5')
     assert fv.in_range('prev-1.0.1-rc5', 'prev-1.0.0-rc5', 'prev-1.0.2-rc5')
     assert not fv.in_range('prev-1.0.3-rc5', 'prev-1.0.0-rc5', 'prev-1.0.2-rc5')
+
+    fv.ordered_suffix = ['alpha', 'beta', 'rc', 'final', None]
+    assert fv.in_range('prev-1.1', 'prev-1.1.0-alpha', 'prev-1.2.0-final')
+    assert not fv.in_range('prev-1.1', 'prev-1.2.0-alpha', 'prev-1.2.0-final')
+    assert not fv.in_range('prev-1.1', 'prev-1.1.0-rc0', 'prev-1.1.0-final')
+    assert fv.in_range('prev-1.1', 'prev-1.1.0-rc0', 'prev-1.1.0-final', True)
+    fv.ordered_suffix = None
