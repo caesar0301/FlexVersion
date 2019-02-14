@@ -194,7 +194,7 @@ class VersionMeta(object):
             args.append('-%s' % self.suffix)
         if self.suffix_version is not None:
             args.append('%d' % self.suffix_version)
-        return ''.join(args)
+        return ''.join(args).strip(' -.')
 
     def __hash__(self):
         return hash(repr(self))
@@ -298,6 +298,13 @@ class VersionMeta(object):
         """
         if not isinstance(other, VersionMeta):
             return NotImplemented
+
+        # With different prefixes
+        if not self.shares_prefix(other):
+            p1 = self.prefix
+            p2 = other.prefix
+            prefix_res = 1 if p1 > p2 else -1 if p1 < p2 else 0
+            return prefix_res
 
         delta = self.substitute(other, ignore_suffix=True)
 
