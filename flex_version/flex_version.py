@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # Utility to handle with software versions
 # Author: xiaming.chen@transwarp.io
-import re
 import copy
+import re
 
 __all__ = ['FlexVersion', 'VersionMeta', 'VersionDelta']
 
@@ -13,7 +13,7 @@ def _cmp(x, y):
 
 def _cmperror(x, y):
     raise TypeError("can't compare '%s' to '%s'" % (
-                    type(x).__name__, type(y).__name__))
+        type(x).__name__, type(y).__name__))
 
 
 def _verdiff(v1, v2, none_as=None):
@@ -122,8 +122,8 @@ class VersionMeta(object):
     Some alternative forms like: 1.0, 1.0.1, 1.0.0.1, com-1, com-1.0 etc.
     """
 
-    _v_regex = r"(?P<prefix>.*\-)?(?P<major>\d+)(?P<minor>\.\d+)" \
-        + r"(?P<maintenance>\.\d+)?(?P<build>\.\d+)?(?P<suffix_raw>\-.*)?"
+    _v_regex = r"(?P<prefix>.*\-)?(?P<major>\d+)(?P<minor>\.\d+)" + \
+               r"(?P<maintenance>\.\d+)?(?P<build>\.\d+)?(?P<suffix_raw>\-.*)?"
     _suffix_regex = r"(?P<suffix>[^\d]*)(?P<version>\d+)?"
 
     def __init__(self, version_str):
@@ -164,7 +164,7 @@ class VersionMeta(object):
             raise ValueError(
                 'Could not parse the given version: {}'.format(version_str))
 
-        # Suuport versioned suffix: whose pattern can be specified.
+        # Support versioned suffix: whose pattern can be specified.
         if self._suffix_raw:
             compiled = re.compile(self._suffix_regex)
             matched = compiled.match(self._suffix_raw)
@@ -352,7 +352,7 @@ class VersionMeta(object):
             raise ValueError('The minv ({}) should be a lower/equal version against maxv ({}).'
                              .format(minv, maxv))
 
-        return self.compares(minv, ignore_suffix) >= 0 and self.compares(maxv, ignore_suffix) <= 0
+        return self.compares(maxv, ignore_suffix) <= 0 <= self.compares(minv, ignore_suffix)
 
 
 class VersionDelta(object):
@@ -519,11 +519,11 @@ class VersionDelta(object):
 
     def __bool__(self):
         return (
-            not self._major or
-            not self._minor or
-            not self._maintenance or
-            not self._build or
-            not self._sver
+                not self._major or
+                not self._minor or
+                not self._maintenance or
+                not self._build or
+                not self._sver
         )
 
     # Pickle support.
@@ -533,7 +533,7 @@ class VersionDelta(object):
         return tuple([none_as if i is None else i for i in s])
 
     def __reduce__(self):
-        return (self.__class__, self._getstate())
+        return self.__class__, self._getstate()
 
 
 VersionDelta.min = VersionDelta(
@@ -553,7 +553,6 @@ VersionDelta.max = VersionDelta(
 )
 
 VersionDelta.zero = VersionDelta(0, 0, 0, 0, 0)
-
 
 if __name__ == '__main__':
 
@@ -577,7 +576,7 @@ if __name__ == '__main__':
     assert vm.maintenance == 0
     assert vm.build is None
     assert vm.suffix == 'final'
-    assert vm.suffix_version == None
+    assert vm.suffix_version is None
 
     v = '1.0.0'
     vm = VersionMeta(v)
@@ -594,7 +593,7 @@ if __name__ == '__main__':
     assert vm.prefix is None
     assert vm.major == 1
     assert vm.minor == 0
-    assert vm.maintenance == None
+    assert vm.maintenance is None
     assert vm.build is None
     assert vm.suffix is None
     assert vm.suffix_version is None
@@ -605,11 +604,11 @@ if __name__ == '__main__':
     assert str(v.add(d)) == 'prev-1.0.0-rc1'
 
     try:
-        # Illeage addition
+        # Illegal addition
         v = VersionMeta('prev-1.0.0-rc0')
         d = VersionDelta(sver=-1)
-        assert v + d
-    except Exception:
+        assert v.add(d)  # sver=-1 breaks assert
+    except AssertionError:
         pass
 
     v = VersionMeta('prev-1.0')
