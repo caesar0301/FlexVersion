@@ -301,8 +301,8 @@ class VersionMeta(object):
 
         # With different prefixes
         if not self.shares_prefix(other):
-            p1 = self.prefix
-            p2 = other.prefix
+            p1 = '' if self.prefix is None else self.prefix
+            p2 = '' if other.prefix is None else other.prefix
             prefix_res = 1 if p1 > p2 else -1 if p1 < p2 else 0
             return prefix_res
 
