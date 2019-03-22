@@ -555,6 +555,7 @@ VersionDelta.max = VersionDelta(
 VersionDelta.zero = VersionDelta(0, 0, 0, 0, 0)
 
 if __name__ == '__main__':
+    from functools import cmp_to_key
 
     # VersionMeta parsers
 
@@ -664,6 +665,16 @@ if __name__ == '__main__':
     assert fv.compares('prev-1.1.1-rc0', 'prev-1.1.2-rc0', True) < 0
     assert fv.compares('prev-1.1.1-rc0', 'prev-1.1.1-rc1', True) == 0
     assert fv.compares('prev-1.0', 'prev-1.0.0-final', True) == 0
+
+    vers = [VersionMeta(i) for i in ['prev-1.0', 'prev-1.1', 'prev-1.2']]
+    vers_sorted = sorted(vers, key=cmp_to_key(lambda x, y: fv.compares(x, y)), reverse=True)
+    assert str(vers_sorted[0]) == 'prev-1.2'
+    assert str(vers_sorted[-1]) == 'prev-1.0'
+
+    vers = [VersionMeta(i) for i in ['1.0', '1.1', '1.2']]
+    vers_sorted = sorted(vers, key=cmp_to_key(lambda x, y: x.compares(y)), reverse=False)
+    assert str(vers_sorted[0]) == '1.0'
+    assert str(vers_sorted[-1]) == '1.2'
 
     # FlexVersion comparisons with ordered suffix
     fv.ordered_suffix = [None, 'alpha', 'beta', 'rc', 'final']
