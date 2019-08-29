@@ -1,5 +1,5 @@
 # FlexVersion
-A cute Python library to manipulate version stuff.
+A cute Python library to manipulate [Semantic Versioning](https://semver.org/).
 
 [![Latest](https://img.shields.io/pypi/v/flex_version.svg)](https://pypi.python.org/pypi/flex_version)
 
